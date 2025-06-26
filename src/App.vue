@@ -6,11 +6,8 @@ const loading = ref(false);
 const reportResult = ref('');
 const isResultVisible = ref(false);
 const reportType = ref('weekly');
-
-// 用于存储用户姓名的变量
 const reporterName = ref('');
 
-// 当组件第一次加载时，尝试从浏览器缓存中读取名字
 onMounted(() => {
   const savedName = localStorage.getItem('reporterName');
   if (savedName) {
@@ -18,11 +15,9 @@ onMounted(() => {
   }
 });
 
-// 监听用户输入的名字，一旦变化，就立刻存入浏览器缓存
 watch(reporterName, (newName) => {
   localStorage.setItem('reporterName', newName);
 });
-
 
 const apiKey = import.meta.env.VITE_ZHIPU_API_KEY;
 
@@ -31,7 +26,6 @@ const textareaRows = computed(() => {
   return Math.max(8, newlines + 1);
 });
 
-// 全新的、回归初心的placeholder文案
 const placeholderText = `想到什么，就写什么... 把脑海里的碎片丢进来就好。
 
 例如：
@@ -59,24 +53,38 @@ async function generateReport() {
   const day = today.getDate();
   const formattedDate = `${year}年${month}月${day}日`;
 
+  const baseInstruction = `你是一位顶级的公文写作专家和排版大师。请将以下工作记录，整理成一份专业、正式、结构清晰的报告。
+
+【极其重要的排版规则】
+1. 绝对禁止使用任何Markdown语法（如'*'、'#'、'**'等）。
+2. 所有输出都必须是纯文本，以便用户能直接复制粘贴到微信或钉钉。
+3. 标题：使用【标题内容】的格式，并且标题前后必须有一个空行。
+4. 列表：使用数字列表（如“1.”、“2.”），每一项占一行。
+5. 段落：段落之间必须用一个完整的空行隔开。
+`;
+
   let prompt = '';
   if (reportType.value === 'daily') {
-    prompt = `你是一位高效的团队主管，请将以下我的今日工作记录，整理成一份清晰、简洁、重点突出的日报。
+    prompt = `${baseInstruction}
+【报告内容要求】
 请严格按照以下信息填充报告头：
-- 报告类型：工作日报
-- 报告日期：${formattedDate}
-- 汇 报 人：${reporterName.value}
+报告类型：工作日报
+报告日期：${formattedDate}
+汇 报 人：${reporterName.value}
 
-报告正文需要包含以下三个部分：1.【今日完成事项】 2.【遇到的问题与风险】 3.【明日工作计划】。
+报告正文需要包含以下三个部分：【今日完成事项】、【遇到的问题与风险】、【明日工作计划】。
+
 我的工作记录是：『${userInput.value}』`;
   } else {
-    prompt = `你是一名资深项目经理，请将以下我的本周工作记录，整理成一份专业、正式、结构清晰、语言精炼且富有洞见的周报。
+    prompt = `${baseInstruction}
+【报告内容要求】
 请严格按照以下信息填充报告头：
-- 报告类型：工作周报
-- 报告日期：${formattedDate} (请根据此日期推算出本周的起止日期范围)
-- 汇 报 人：${reporterName.value}
+报告类型：工作周报
+报告日期：${formattedDate} (请根据此日期推算出本周的起止日期范围)
+汇 报 人：${reporterName.value}
 
 报告正文需要包含以下几个部分：【本周核心工作概览】、【主要成果与数据支撑】、【遇到的挑战与解决方案】、【个人成长与反思】、【下周重点计划】。
+
 我的工作记录是：『${userInput.value}』`;
   }
 
@@ -157,7 +165,7 @@ async function generateReport() {
     </main>
     
     <footer class="page-footer">
-      <p>由 <a href="https://gitee.com/你的Gitee用户名" target="_blank">你的名字</a> 基于大语言模型匠心打造</p>
+      <p>由 <a href="https://gitee.com/wangtong07" target="_blank">WangTong07</a> 基于大语言模型匠心打造</p>
     </footer>
     
     <transition name="slide-fade">
@@ -177,7 +185,6 @@ async function generateReport() {
 </template>
 
 <style>
-/* 包含了所有模块的最终样式 */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --color-text: #e2e8f0;
