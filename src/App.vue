@@ -27,13 +27,25 @@ const textareaRows = computed(() => {
   return Math.max(8, newlines + 1);
 });
 
-const placeholderText = `想到什么，就写什么... 把脑海里的碎片丢进来就好。
+// 【最新升级】使用计算属性，实现placeholder的动态切换
+const placeholderText = computed(() => {
+  if (reportType.value === 'daily') {
+    return `想到什么，就写什么... 今天的碎片都丢进来。
 
 例如：
-- 开会，V2.1需求
-- 修了3个bug
-- 写了导出功能的文档
-- 帮小王解决了问题`;
+- 上午开会，定了V2.1需求
+- 下午修了3个bug
+- 晚上写了文档`;
+  } else {
+    return `回顾一周，想到什么写什么... 把脑海里的片段拼起来。
+
+例如：
+- 周一，和产品开会对了下季度目标
+- 周二周三，集中开发新功能
+- 周四，解决了两个线上问题
+- 周五，项目复盘，写总结`;
+  }
+});
 
 async function generateReport() {
   if (!userInput.value.trim()) {
