@@ -7,6 +7,7 @@ const reportResult = ref('');
 const isResultVisible = ref(false);
 const reportType = ref('weekly');
 const reporterName = ref('');
+const isCopied = ref(false);
 
 onMounted(() => {
   const savedName = localStorage.getItem('reporterName');
@@ -53,39 +54,13 @@ async function generateReport() {
   const day = today.getDate();
   const formattedDate = `${year}年${month}月${day}日`;
 
-  const baseInstruction = `你是一位顶级的公文写作专家和排版大师。请将以下工作记录，整理成一份专业、正式、结构清晰的报告。
-
-【极其重要的排版规则】
-1. 绝对禁止使用任何Markdown语法（如'*'、'#'、'**'等）。
-2. 所有输出都必须是纯文本，以便用户能直接复制粘贴到微信或钉钉。
-3. 标题：使用【标题内容】的格式，并且标题前后必须有一个空行。
-4. 列表：使用数字列表（如“1.”、“2.”），每一项占一行。
-5. 段落：段落之间必须用一个完整的空行隔开。
-`;
+  const baseInstruction = `你是一位顶级的公文写作专家和排版大师。请将以下工作记录，整理成一份专业、正式、结构清晰的报告。\n\n【极其重要的排版规则】\n1. 绝对禁止使用任何Markdown语法（如'*'、'#'、'**'等）。\n2. 所有输出都必须是纯文本，以便用户能直接复制粘贴到微信或钉钉。\n3. 标题：使用【标题内容】的格式，并且标题前后必须有一个空行。\n4. 列表：使用数字列表（如“1.”、“2.”），每一项占一行。\n5. 段落：段落之间必须用一个完整的空行隔开。\n`;
 
   let prompt = '';
   if (reportType.value === 'daily') {
-    prompt = `${baseInstruction}
-【报告内容要求】
-请严格按照以下信息填充报告头：
-报告类型：工作日报
-报告日期：${formattedDate}
-汇 报 人：${reporterName.value}
-
-报告正文需要包含以下三个部分：【今日完成事项】、【遇到的问题与风险】、【明日工作计划】。
-
-我的工作记录是：『${userInput.value}』`;
+    prompt = `${baseInstruction}\n【报告内容要求】\n请严格按照以下信息填充报告头：\n报告类型：工作日报\n报告日期：${formattedDate}\n汇 报 人：${reporterName.value}\n\n报告正文需要包含以下三个部分：【今日完成事项】、【遇到的问题与风险】、【明日工作计划】。\n\n我的工作记录是：『${userInput.value}』`;
   } else {
-    prompt = `${baseInstruction}
-【报告内容要求】
-请严格按照以下信息填充报告头：
-报告类型：工作周报
-报告日期：${formattedDate} (请根据此日期推算出本周的起止日期范围)
-汇 报 人：${reporterName.value}
-
-报告正文需要包含以下几个部分：【本周核心工作概览】、【主要成果与数据支撑】、【遇到的挑战与解决方案】、【个人成长与反思】、【下周重点计划】。
-
-我的工作记录是：『${userInput.value}』`;
+    prompt = `${baseInstruction}\n【报告内容要求】\n请严格按照以下信息填充报告头：\n报告类型：工作周报\n报告日期：${formattedDate} (请根据此日期推算出本周的起止日期范围)\n汇 报 人：${reporterName.value}\n\n报告正文需要包含以下几个部分：【本周核心工作概览】、【主要成果与数据支撑】、【遇到的挑战与解决方案】、【个人成长与反思】、【下周重点计划】。\n\n我的工作记录是：『${userInput.value}』`;
   }
 
   try {
@@ -112,6 +87,20 @@ async function generateReport() {
     alert(`生成报告时遇到问题: ${error.message}`);
   } finally {
     loading.value = false;
+  }
+}
+
+async function copyResult() {
+  if (!reportResult.value) return;
+  try {
+    await navigator.clipboard.writeText(reportResult.value);
+    isCopied.value = true;
+    setTimeout(() => {
+      isCopied.value = false;
+    }, 2000);
+  } catch (err) {
+    console.error('复制失败:', err);
+    alert('复制失败，您的浏览器可能不支持此功能。');
   }
 }
 </script>
@@ -173,6 +162,16 @@ async function generateReport() {
         <div class="result-card">
               <div class="result-header">
                   <h3>生成结果</h3>
+                  <button @click="copyResult" class="copy-btn" :class="{ 'copied': isCopied }">
+                    <span v-if="!isCopied">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      一键复制
+                    </span>
+                    <span v-else>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      已复制！
+                    </span>
+                  </button>
                   <button @click="isResultVisible=false" class="close-btn">×</button>
               </div>
               <div class="result-content">
@@ -185,6 +184,7 @@ async function generateReport() {
 </template>
 
 <style>
+/* 包含了所有模块的最终样式 */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --color-text: #e2e8f0;
@@ -193,6 +193,7 @@ async function generateReport() {
   --color-glass-bg: rgba(30, 41, 59, 0.75);
   --color-border: rgba(148, 163, 184, 0.2);
   --color-primary: #818cf8;
+  --color-success: #22c55e;
   --color-aurora-1: #7c3aed;
   --color-aurora-2: #4f46e5;
   --color-aurora-3: #db2777;
@@ -212,8 +213,11 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
 @keyframes move { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(100px, 50px) rotate(60deg); } }
 .result-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.5); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; justify-content: center; align-items: center; z-index: 100; }
 .result-card { width: 90%; max-width: 800px; height: 80vh; background: var(--color-glass-bg); border: 1px solid var(--color-border); border-radius: 24px; padding: 2rem; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); display: flex; flex-direction: column; }
-.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; }
-.result-header h3 { margin: 0; font-size: 1.5rem; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-shrink: 0; gap: 1rem; }
+.result-header h3 { flex-grow: 1; margin: 0; font-size: 1.5rem; }
+.copy-btn { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border: 1px solid var(--color-border); background-color: rgba(148, 163, 184, 0.1); color: var(--color-text-dim); font-size: 0.875rem; font-weight: 500; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
+.copy-btn:hover { background-color: rgba(148, 163, 184, 0.2); color: var(--color-text); }
+.copy-btn.copied { background-color: var(--color-success); color: white; border-color: var(--color-success); }
 .close-btn { background: none; border: none; font-size: 2.5rem; color: var(--color-text-dim); cursor: pointer; transition: color 0.3s ease; line-height: 1; padding: 0; }
 .close-btn:hover { color: var(--color-text); }
 .result-content { flex-grow: 1; overflow-y: auto; background: rgba(15, 23, 42, 0.7); border-radius: 8px; padding: 1.5rem; }
