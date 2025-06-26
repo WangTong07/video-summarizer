@@ -1,13 +1,28 @@
-// “龙脉计划-最终定稿版” App.vue
-// 这份代码已经是我们之前所有迭代的最终完美形态
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 
 const userInput = ref('');
 const loading = ref(false);
 const reportResult = ref('');
 const isResultVisible = ref(false);
 const reportType = ref('weekly');
+
+// 用于存储用户姓名的变量
+const reporterName = ref('');
+
+// 当组件第一次加载时，尝试从浏览器缓存中读取名字
+onMounted(() => {
+  const savedName = localStorage.getItem('reporterName');
+  if (savedName) {
+    reporterName.value = savedName;
+  }
+});
+
+// 监听用户输入的名字，一旦变化，就立刻存入浏览器缓存
+watch(reporterName, (newName) => {
+  localStorage.setItem('reporterName', newName);
+});
+
 
 const apiKey = import.meta.env.VITE_ZHIPU_API_KEY;
 
@@ -16,20 +31,53 @@ const textareaRows = computed(() => {
   return Math.max(8, newlines + 1);
 });
 
+// 全新的、回归初心的placeholder文案
+const placeholderText = `想到什么，就写什么... 把脑海里的碎片丢进来就好。
+
+例如：
+- 开会，V2.1需求
+- 修了3个bug
+- 写了导出功能的文档
+- 帮小王解决了问题`;
+
 async function generateReport() {
   if (!userInput.value.trim()) {
     alert('请输入你的工作内容！');
+    return;
+  }
+  if (!reporterName.value.trim()) {
+    alert('请输入你的名字，方便AI生成报告！');
     return;
   }
   
   loading.value = true;
   isResultVisible.value = false;
 
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth() + 1;
+  const day = today.getDate();
+  const formattedDate = `${year}年${month}月${day}日`;
+
   let prompt = '';
   if (reportType.value === 'daily') {
-    prompt = `你是一位高效的团队主管，请将以下我的今日工作记录，整理成一份清晰、简洁、重点突出的日报。日报需要包含以下三个部分：1.【今日完成事项】(请用量化的方式描述) 2.【遇到的问题与风险】(如果没有问题，可以说“暂无”) 3.【明日工作计划】。请确保语言专业、干练。我的工作记录是：『${userInput.value}』`;
+    prompt = `你是一位高效的团队主管，请将以下我的今日工作记录，整理成一份清晰、简洁、重点突出的日报。
+请严格按照以下信息填充报告头：
+- 报告类型：工作日报
+- 报告日期：${formattedDate}
+- 汇 报 人：${reporterName.value}
+
+报告正文需要包含以下三个部分：1.【今日完成事项】 2.【遇到的问题与风险】 3.【明日工作计划】。
+我的工作记录是：『${userInput.value}』`;
   } else {
-    prompt = `你是一名资深项目经理和语言专家，请将以下我的本周工作记录，整理成一份专业、正式、结构清晰、语言精炼且富有洞见的周报。周报需要包含以下几个部分：【本周核心工作概览】、【主要成果与数据支撑】、【遇到的挑战与解决方案】、【个人成长与反思】、【下周重点计划】。请确保语言风格专业、积极，并能突出个人贡献和价值。我的工作记录是：『${userInput.value}』`;
+    prompt = `你是一名资深项目经理，请将以下我的本周工作记录，整理成一份专业、正式、结构清晰、语言精炼且富有洞见的周报。
+请严格按照以下信息填充报告头：
+- 报告类型：工作周报
+- 报告日期：${formattedDate} (请根据此日期推算出本周的起止日期范围)
+- 汇 报 人：${reporterName.value}
+
+报告正文需要包含以下几个部分：【本周核心工作概览】、【主要成果与数据支撑】、【遇到的挑战与解决方案】、【个人成长与反思】、【下周重点计划】。
+我的工作记录是：『${userInput.value}』`;
   }
 
   try {
@@ -59,6 +107,7 @@ async function generateReport() {
   }
 }
 </script>
+
 <template>
   <div class="page-wrapper">
     <div class="aurora-background">
@@ -66,6 +115,7 @@ async function generateReport() {
       <div class="aurora-shape shape-2"></div>
       <div class="aurora-shape shape-3"></div>
     </div>
+
     <main class="content-area">
       <div class="glass-card">
           <header class="card-header">
@@ -73,27 +123,29 @@ async function generateReport() {
             <h1>AI 智能报告神器</h1>
             <p>输入你的流水账，收获一份惊艳上级的专业报告</p>
           </header>
+          
           <div class="report-type-selector">
             <button :class="{ active: reportType === 'daily' }" @click="reportType = 'daily'">日报</button>
             <button :class="{ active: reportType === 'weekly' }" @click="reportType = 'weekly'">周报</button>
           </div>
-          <section class="features">
-            <div class="feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                <span>深度理解</span>
-            </div>
-            <div class="feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                <span>专业写作</span>
-            </div>
-            <div class="feature-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 9l-7 3 7 3 2 7 2-7 7-3-7-3z"></path></svg>
-                <span>一键排版</span>
-            </div>
+          
+          <section class="reporter-input-section">
+            <label for="reporterName">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              汇报人
+            </label>
+            <input 
+              type="text" 
+              id="reporterName" 
+              v-model="reporterName" 
+              placeholder="请输入你的名字"
+            />
           </section>
+          
           <section class="input-container">
-            <textarea v-model="userInput" :rows="textareaRows" :placeholder="reportType === 'daily' ? '请粘贴或输入今天的日报内容...' : '请粘贴或输入本周的工作记录...'"></textarea>
+            <textarea v-model="userInput" :rows="textareaRows" :placeholder="placeholderText"></textarea>
           </section>
+          
           <button @click="generateReport" :disabled="loading" class="action-button">
             <span v-if="!loading">生成我的专属报告</span>
             <span v-else class="loading-state">
@@ -103,12 +155,14 @@ async function generateReport() {
           </button>
       </div>
     </main>
+    
     <footer class="page-footer">
       <p>由 <a href="https://gitee.com/你的Gitee用户名" target="_blank">你的名字</a> 基于大语言模型匠心打造</p>
     </footer>
+    
     <transition name="slide-fade">
       <div v-if="isResultVisible" class="result-overlay">
-          <div class="result-card">
+        <div class="result-card">
               <div class="result-header">
                   <h3>生成结果</h3>
                   <button @click="isResultVisible=false" class="close-btn">×</button>
@@ -121,8 +175,9 @@ async function generateReport() {
     </transition>
   </div>
 </template>
+
 <style>
-/* 这份CSS已经是经过所有优化和修复的最终版本，可以直接使用 */
+/* 包含了所有模块的最终样式 */
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --color-text: #e2e8f0;
@@ -165,11 +220,10 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
 .report-type-selector { display: flex; justify-content: center; background-color: rgba(15, 23, 42, 0.5); padding: 0.375rem; border-radius: 12px; }
 .report-type-selector button { flex: 1; padding: 0.75rem 1rem; border: none; background-color: transparent; color: var(--color-text-dim); font-size: 1rem; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; }
 .report-type-selector button.active { background-color: var(--color-primary); color: white; box-shadow: 0 2px 10px rgba(129, 140, 248, 0.2); }
-.features { display: flex; justify-content: space-around; background-color: rgba(15, 23, 42, 0.5); padding: 1rem; border-radius: 16px; }
-.feature-item { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: var(--color-text-dim); transition: color 0.3s ease; }
-.feature-item:hover { color: var(--color-text); }
-.feature-item svg { width: 24px; height: 24px; }
-.feature-item span { font-size: 0.875rem; font-weight: 500; }
+.reporter-input-section { display: flex; align-items: center; gap: 1rem; background-color: rgba(15, 23, 42, 0.5); padding: 0.75rem 1.25rem; border-radius: 16px; }
+.reporter-input-section label { display: flex; align-items: center; gap: 0.5rem; font-weight: 500; color: var(--color-text-dim); white-space: nowrap; }
+.reporter-input-section input { width: 100%; background-color: transparent; border: none; color: var(--color-text); font-size: 1rem; padding: 0.25rem; }
+.reporter-input-section input:focus { outline: none; }
 .input-container textarea { width: 100%; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--color-border); border-radius: 12px; padding: 1rem; color: var(--color-text); font-size: 1rem; line-height: 1.6; resize: none; transition: all 0.3s ease; }
 .input-container textarea:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.3); }
 .action-button { width: 100%; padding: 1rem; border: none; border-radius: 12px; background: linear-gradient(90deg, var(--color-primary), var(--color-aurora-2)); color: white; font-size: 1.125rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(129, 140, 248, 0.2); }
@@ -182,5 +236,5 @@ body { font-family: var(--font-sans); background-color: var(--color-bg); color: 
 .path { stroke: white; stroke-linecap: round; animation: dash 1.5s ease-in-out infinite; }
 @keyframes rotate { 100% { transform: rotate(360deg); } }
 @keyframes dash { 0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; } 50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; } 100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; } }
-@media (max-width: 768px) { .content-container { padding: 1rem; } .glass-card { padding: 1.5rem; } .card-header h1 { font-size: 1.75rem; } .features { flex-direction: column; gap: 1.5rem; } .result-card { width: calc(100% - 2rem); height: 85vh; border-radius: 16px; padding: 1.5rem;} }
+@media (max-width: 768px) { .content-container { padding: 1rem; } .glass-card { padding: 1.5rem; } .card-header h1 { font-size: 1.75rem; } .result-card { width: calc(100% - 2rem); height: 85vh; border-radius: 16px; padding: 1.5rem;} }
 </style>
