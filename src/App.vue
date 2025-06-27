@@ -1,65 +1,70 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 
-const userInput = ref('');
+const videoUrl = ref(''); // 输入框现在绑定的是视频URL
 const loading = ref(false);
+const loadingText = ref(''); // 用于显示加载状态的文本
 const resultText = ref('');
 const isResultVisible = ref(false);
 
 const apiKey = import.meta.env.VITE_ZHIPU_API_KEY;
 
-const textareaRows = computed(() => {
-  const newlines = (userInput.value.match(/\n/g) || []).length;
-  return Math.max(15, newlines + 1); // 提供一个更大的初始输入框
-});
-
 async function generateSummary() {
-  if (!userInput.value.trim()) {
-    alert('请粘贴需要总结的内容！');
+  if (!videoUrl.value.trim()) {
+    alert('请粘贴视频链接！');
     return;
   }
+  
   loading.value = true;
   isResultVisible.value = false;
-
-  // 为“课代表”量身定制的全新Prompt
-  const prompt = `你是一个世界顶级的学习专家和情报分析师，你的任务是为我阅读并深度总结以下提供的长篇内容。
-
-  【你的输出必须严格遵循以下格式】
-  **1. 核心摘要 (一句话总结):**
-  用一句话，精准地概括全文的核心主旨或最终结论。
-
-  **2. 章节要点 (Key Points):**
-  以数字列表的形式，分点提炼出文中的5-8个关键论点、核心步骤或重要信息。每一条要点都应该简洁、清晰、易于理解。
-
-  **3. 金句摘录 (Golden Quotes):**
-  找出并列出文中1-3句最具有启发性、最震撼、或最值得反复回味的原话。
-
-  【需要你总结的全文如下】
-  『${userInput.value}』
-
-  请开始你的分析和总结。`;
+  resultText.value = '';
 
   try {
-    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "glm-4", // 建议使用更新、更强大的模型处理长文本
-        messages: [{ role: "user", content: prompt }]
-      })
-    });
-    if (!response.ok) {
-        const errorBody = await response.json();
-        throw new Error(errorBody.error?.message || `HTTP error! status: ${response.status}`);
+    // --- 第一阶段：调用我们的云函数，获取字幕 ---
+    loadingText.value = '正在解析视频，提取字幕中...';
+    // 注意这里的API路径，Vercel会自动映射
+    const subtitleResponse = await fetch(`/api/get-subtitle?url=${encodeURIComponent(videoUrl.value)}`);
+    
+    if (!subtitleResponse.ok) {
+      const errorData = await subtitleResponse.json();
+      throw new Error(`字幕提取失败: ${errorData.error}`);
     }
-    const data = await response.json();
-    resultText.value = data.choices[0].message.content;
+    
+    const subtitleData = await subtitleResponse.json();
+    const subtitleText = subtitleData.subtitle;
+
+    if (!subtitleText || subtitleText.trim() === '') {
+      throw new Error('未能提取到有效字幕，请检查视频是否提供字幕。');
+    }
+
+    // --- 第二阶段：将获取到的字幕，发送给AI进行总结 ---
+    loadingText.value = '字幕提取成功，正在深度阅读并总结...';
+    const prompt = `你是一个世界顶级的学习专家...（我们之前的完美Prompt）...【需要你总结的全文如下】\n『${subtitleText}』`;
+    
+    const aiResponse = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+            model: "glm-4",
+            messages: [{ role: "user", content: prompt }]
+        })
+    });
+
+    if (!aiResponse.ok) {
+        const errorBody = await aiResponse.json();
+        throw new Error(errorBody.error?.message || `HTTP error! status: ${aiResponse.status}`);
+    }
+
+    const aiData = await aiResponse.json();
+    resultText.value = aiData.choices[0].message.content;
     isResultVisible.value = true;
+
   } catch (error) {
-    console.error("请求AI API失败:", error);
-    alert(`生成摘要时遇到问题: ${error.message}`);
+    console.error("处理失败:", error);
+    alert(`处理失败: ${error.message}`);
   } finally {
     loading.value = false;
+    loadingText.value = '';
   }
 }
 </script>
@@ -74,73 +79,48 @@ async function generateSummary() {
       </header>
       
       <section class="input-section">
-        <textarea 
-          v-model="userInput" 
-          :rows="textareaRows" 
-          placeholder="请在此处粘贴完整的视频字幕文稿或长篇文章内容..."
-        ></textarea>
+        <!-- 输入框现在是单行的，用于粘贴URL -->
+        <input 
+          type="url"
+          v-model="videoUrl" 
+          placeholder="请在此处粘贴B站或YouTube视频链接..."
+          class="url-input"
+        />
       </section>
       
       <button @click="generateSummary" :disabled="loading" class="action-button">
         <span v-if="!loading" class="button-content">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-9"></path><path d="M3 14h9a2 2 0 0 0 0-4H3z"></path></svg>
+          <svg>...</svg>
           开始划重点
         </span>
         <span v-else class="loading-state">
           <svg class="spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
-          深度阅读中...
+          {{ loadingText }}
         </span>
       </button>
 
-      <transition name="fade">
-        <section v-if="isResultVisible" class="result-section">
-          <div class="result-header">
-            <h3>AI 课代表总结</h3>
-          </div>
-          <div class="result-content" v-html="resultText.replace(/\n/g, '<br/>')"></div>
-        </section>
-      </transition>
+      <!-- ... 结果展示区和页脚部分保持不变 ... -->
     </main>
-    
-    <footer class="page-footer">
-      <p>由 <a href="https://github.com/WangTong07" target="_blank">WangTong07</a> 匠心打造</p>
-    </footer>
   </div>
 </template>
 
 <style>
-/* 这份CSS复用了我们之前暗色科技风的设计，并做了微调 */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  --bg-color: #0d1117;
-  --card-bg-color: #161b22;
-  --text-color: #c9d1d9;
-  --text-dim-color: #8b949e;
-  --border-color: rgba(255, 255, 255, 0.1);
-  --primary-color: #58a6ff; /* 换一个冷静的蓝色 */
-  --primary-glow-color: rgba(88, 166, 255, 0.3);
-}
-*, *::before, *::after { box-sizing: border-box; }
-body { font-family: var(--font-sans); background-color: var(--bg-color); color: var(--text-color); margin: 0; }
-.page-wrapper { width: 100%; min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem; }
-.background-texture { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(ellipse 80% 80% at 50% -20%,rgba(120,119,198,0.15), hsla(0,0%,100%,0)); opacity: 0.5; z-index: -1; }
-.main-container { width: 100%; max-width: 720px; background-color: var(--card-bg-color); border: 1px solid var(--border-color); border-radius: 24px; padding: 2.5rem; box-shadow: 0 0 50px rgba(0,0,0,0.2), inset 0 0 0 1px var(--border-color); display: flex; flex-direction: column; gap: 2rem; }
-.card-header { text-align: center; }
-.main-title { font-size: 2.5rem; font-weight: 800; margin: 0 0 0.5rem; color: #f0f6fc; letter-spacing: -1px; }
-.subtitle { font-size: 1rem; color: var(--text-dim-color); margin: 0; }
-textarea {
-  width: 100%;
-  background: #0d1117;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1rem;
-  color: var(--text-color);
-  font-size: 1rem;
-  line-height: 1.6;
-  resize: vertical;
-  transition: all 0.2s ease;
-}
+  /* 我们需要为新的URL输入框增加样式 */
+  .url-input {
+    width: 100%;
+    background: #0d1117;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1rem;
+    color: var(--text-color);
+    font-size: 1rem;
+    transition: all 0.2s ease;
+  }
+  .url-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-glow-color);
+  }
 textarea:focus { outline: none; border-color: var(--primary-color); box-shadow: 0 0 0 3px var(--primary-glow-color); }
 .action-button { width: 100%; padding: 1.125rem; border: none; border-radius: 12px; color: #0d1117; font-size: 1.125rem; font-weight: 700; cursor: pointer; background: var(--primary-color); box-shadow: 0 0 25px var(--primary-glow-color); transition: all 0.2s ease-in-out; }
 .action-button:hover:not(:disabled) { transform: translateY(-3px) scale(1.02); box-shadow: 0 0 35px var(--primary-glow-color); }
