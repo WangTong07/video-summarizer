@@ -10,17 +10,14 @@ const isResultVisible = ref(false);
 const apiKey = import.meta.env.VITE_ZHIPU_API_KEY;
 
 // --- Transformers.js 相关变量 ---
-let transcriber = null; // 用于存放语音识别模型的变量
+let transcriber = null;
 
 // --- 核心函数 ---
 
-// 1. 初始化AI模型 (页面加载时执行)
+// 1. 初始化AI模型
 onMounted(async () => {
   try {
-    // 动态导入 Transformers.js 的 pipeline 功能
     const { pipeline } = await import('@xenova/transformers');
-    // 创建一个语音识别管道，使用轻量级的Whisper模型
-    // 这个过程只在第一次加载时发生，模型会被浏览器缓存
     loadingText.value = '正在初始化本地AI引擎，首次加载较慢...';
     transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny');
     loadingText.value = '本地AI引擎准备就绪！';
@@ -31,47 +28,31 @@ onMounted(async () => {
   }
 });
 
-// 2. 处理用户拖拽进来的文件
-async function handleFileDrop(event) {
-  // 阻止浏览器的默认行为
-  event.preventDefault();
-  if (loading.value) return;
+// 2. 处理文件
+async function handleFile(file) {
+  if (!file || loading.value) return;
 
-  const files = event.dataTransfer.files;
-  if (files.length === 0) {
-    alert('请拖拽一个文件进来。');
-    return;
-  }
-  
-  const file = files[0];
-  
-  // 开始处理流程
   loading.value = true;
   isResultVisible.value = false;
   resultText.value = '';
 
   try {
     let extractedText = '';
-    // 根据文件类型，选择不同的处理方式
     if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
-      // --- 处理音视频文件 ---
       loadingText.value = '正在本地解析音视频，这可能需要几分钟...';
-      // 将文件转换为AudioBuffer，这是模型需要的格式
-      const audioBuffer = await file.arrayBuffer();
-      // 使用我们加载好的模型进行语音转文字
-      const transcription = await transcriber(new Float32Array(audioBuffer), {
+      const arrayBuffer = await file.arrayBuffer();
+      // Whisper模型需要特定格式的音频数据
+      const audioData = await readAudio(arrayBuffer, file.type);
+      const transcription = await transcriber(audioData, {
         chunk_length_s: 30,
         stride_length_s: 5,
         language: 'chinese',
         task: 'transcribe',
       });
       extractedText = transcription.text;
-
     } else if (file.type === 'text/plain') {
-      // --- 处理文本文档 ---
       loadingText.value = '正在读取文本文档...';
       extractedText = await file.text();
-
     } else {
       throw new Error(`暂不支持此文件类型: ${file.type}`);
     }
@@ -79,8 +60,6 @@ async function handleFileDrop(event) {
     if (!extractedText || extractedText.trim() === '') {
       throw new Error('未能从文件中提取到有效文本内容。');
     }
-
-    // --- 将提取到的文本，发送给大模型进行总结 ---
     await generateSummary(extractedText);
 
   } catch (error) {
@@ -91,7 +70,14 @@ async function handleFileDrop(event) {
   }
 }
 
-// 3. AI总结函数 (现在被handleFileDrop调用)
+// 辅助函数：将文件ArrayBuffer转为模型需要的音频格式
+async function readAudio(buffer, mimeType) {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const decoded = await audioContext.decodeAudioData(buffer);
+    return decoded.getChannelData(0);
+}
+
+// 3. AI总结函数
 async function generateSummary(textContent) {
   loadingText.value = '文本提取成功，AI深度阅读中...';
   const prompt = `你是一个世界顶级的学习专家和情报分析师...（我们之前的完美Prompt）...【需要你总结的全文如下】\n『${textContent}』`;
@@ -118,11 +104,25 @@ async function generateSummary(textContent) {
   }
 }
 
-// 辅助函数：将Markdown转为HTML用于显示
 function markdownToHtml(text) {
   text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   text = text.replace(/\n/g, '<br/>');
   return text;
+}
+
+// 4. 处理拖拽和点击上传
+function handleDrop(event) {
+  event.preventDefault();
+  const files = event.dataTransfer.files;
+  if (files.length > 0) {
+    handleFile(files[0]);
+  }
+}
+function handleFileSelect(event) {
+  const files = event.target.files;
+  if (files.length > 0) {
+    handleFile(files[0]);
+  }
 }
 </script>
 
@@ -132,24 +132,26 @@ function markdownToHtml(text) {
     <main class="main-container">
       <header class="card-header">
         <h1 class="main-title">本地AI知识助理</h1>
-        <p class="subtitle">拖拽你的视频、音频、文档，让AI为你深度解析</p>
+        <p class="subtitle">拖拽或点击上传你的视频、音频、文档，让AI为你深度解析</p>
       </header>
       
-      <!-- 【核心修改】全新的文件拖拽区 -->
       <section 
         class="drop-zone"
         @dragover.prevent
-        @drop.prevent="handleFileDrop"
+        @dragenter.prevent
+        @drop.prevent="handleDrop"
+        @click="() => $refs.fileInput.click()"
       >
         <div class="drop-zone-content">
           <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21.2 15c.7-1.2 1-2.5.7-3.9-.6-2.4-3-4-5.4-4-1.6 0-3.1.8-4.1 2.1-1.3-.6-2.9-.2-3.8 1.1-.9 1.2-.8 2.8.3 3.8.3.2.6.4.9.5-2.2.4-3.8 2.2-3.8 4.4 0 2.5 2 4.5 4.5 4.5h10.5c2.5 0 4.5-2 4.5-4.5 0-1-.3-1.9-.8-2.7z"></path><path d="M12 13v9"></path><path d="m9 17 3 3 3-3"></path></svg>
-          <p class="drop-zone-title">将文件拖拽到此处</p>
-          <p class="drop-zone-subtitle">支持视频 (mp4, mov)、音频 (mp3, wav)、文本 (txt) 文件</p>
+          <p class="drop-zone-title">将文件拖拽到此处，或点击上传</p>
+          <p class="drop-zone-subtitle">支持视频(mp4), 音频(mp3, wav), 文本(txt)</p>
         </div>
+        <input type="file" ref="fileInput" @change="handleFileSelect" style="display: none;" />
       </section>
       
-      <div v-if="loading" class="loading-indicator">
-          <svg class="spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
+      <div v-if="loading || loadingText" class="loading-indicator">
+          <svg v-if="loading" class="spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
           <p>{{ loadingText }}</p>
       </div>
 
@@ -164,7 +166,7 @@ function markdownToHtml(text) {
     </main>
     
     <footer class="page-footer">
-      <p>由 <a href="https://github.com/WangTong07" target="_blank">WangTong07</a> 匠心打造 (所有文件均在您的本地浏览器中处理，不会上传)</p>
+      <p>所有文件均在您的本地浏览器中处理，不会上传，保障您的隐私安全。</p>
     </footer>
   </div>
 </template>
