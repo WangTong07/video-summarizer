@@ -1,7 +1,0 @@
-{
-    "functions": {
-        "api/get-subtitle.js": {
-            "includeFiles": "node_modules/youtube-dl-wrap/bin/**"
-        }
-    }
-}

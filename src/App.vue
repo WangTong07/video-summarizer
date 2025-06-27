@@ -1,92 +1,59 @@
+// “回归MVP·最终版” App.vue
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
-const videoUrl = ref('');
+const userInput = ref('');
 const loading = ref(false);
-const loadingText = ref('');
 const resultText = ref('');
 const isResultVisible = ref(false);
 
 const apiKey = import.meta.env.VITE_ZHIPU_API_KEY;
 
-// v-html无法直接解析Markdown，所以我们需要一个简单的函数来把**加粗**转成<strong>标签
+const textareaRows = computed(() => {
+  const newlines = (userInput.value.match(/\n/g) || []).length;
+  return Math.max(15, newlines + 1);
+});
+
 function markdownToHtml(text) {
-  // 替换加粗
   text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  // 替换换行符为<br>
   text = text.replace(/\n/g, '<br/>');
   return text;
 }
 
 async function generateSummary() {
-  if (!videoUrl.value.trim()) {
-    alert('请粘贴视频链接！');
+  if (!userInput.value.trim()) {
+    alert('请粘贴需要总结的内容！');
     return;
   }
-  
   loading.value = true;
   isResultVisible.value = false;
-  resultText.value = '';
+
+  const prompt = `你是一个世界顶级的学习专家和情报分析师...（我们之前的完美Prompt）...【需要你总结的全文如下】\n『${userInput.value}』`;
 
   try {
-    loadingText.value = '正在解析视频，提取字幕中... (可能需要1-2分钟，请耐心等待)';
-    const subtitleResponse = await fetch(`/api/get-subtitle?url=${encodeURIComponent(videoUrl.value)}`);
-    
-    if (!subtitleResponse.ok) {
-      const errorData = await subtitleResponse.json();
-      throw new Error(`字幕提取失败: ${errorData.error || '未知错误'}`);
-    }
-    
-    const subtitleData = await subtitleResponse.json();
-    const subtitleText = subtitleData.subtitle;
-
-    if (!subtitleText || subtitleText.trim() === '') {
-      throw new Error('未能提取到有效字幕，请检查视频是否提供字幕，或稍后再试。');
-    }
-
-    loadingText.value = '字幕提取成功，AI深度阅读中...';
-    const prompt = `你是一个世界顶级的学习专家和情报分析师，你的任务是为我阅读并深度总结以下提供的长篇内容。
-
-    【你的输出必须严格遵循以下格式，并使用Markdown语法】
-    **1. 核心摘要 (一句话总结):**
-    用一句话，精准地概括全文的核心主旨或最终结论。
-
-    **2. 章节要点 (Key Points):**
-    以数字列表的形式，分点提炼出文中的5-8个关键论点、核心步骤或重要信息。每一条要点都应该简洁、清晰、易于理解。
-
-    **3. 金句摘录 (Golden Quotes):**
-    找出并列出文中1-3句最具有启发性、最震撼、或最值得反复回味的原话。
-
-    【需要你总结的全文如下】
-    『${subtitleText}』
-
-    请开始你的分析和总结。`;
-    
-    const aiResponse = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify({
-            model: "glm-4",
-            messages: [{ role: "user", content: prompt }]
-        })
+    const response = await fetch("https://open.bigmodel.cn/api/paas/v4/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "glm-4",
+        messages: [{ role: "user", content: prompt }]
+      })
     });
 
-    if (!aiResponse.ok) {
-        const errorBody = await aiResponse.json();
-        throw new Error(errorBody.error?.message || `HTTP error! status: ${aiResponse.status}`);
+    if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody.error?.message || `HTTP error! status: ${response.status}`);
     }
 
-    const aiData = await aiResponse.json();
-    // 使用markdownToHtml函数处理结果
-    resultText.value = markdownToHtml(aiData.choices[0].message.content);
+    const data = await response.json();
+    resultText.value = markdownToHtml(data.choices[0].message.content);
     isResultVisible.value = true;
 
   } catch (error) {
-    console.error("处理失败:", error);
-    alert(`处理失败: ${error.message}`);
+    console.error("请求AI API失败:", error);
+    alert(`生成摘要时遇到问题: ${error.message}`);
   } finally {
     loading.value = false;
-    loadingText.value = '';
   }
 }
 </script>
@@ -101,23 +68,22 @@ async function generateSummary() {
       </header>
       
       <section class="input-section">
-        <input 
-          type="url"
-          v-model="videoUrl" 
-          placeholder="请在此处粘贴B站或YouTube视频链接..."
-          class="url-input"
-          @keyup.enter="generateSummary"
-        />
+        <textarea 
+          v-model="userInput" 
+          :rows="textareaRows" 
+          placeholder="请在此处粘贴完整的视频字幕文稿或长篇文章内容..."
+          class="url-input" <!-- 复用样式 -->
+        ></textarea>
       </section>
       
       <button @click="generateSummary" :disabled="loading" class="action-button">
         <span v-if="!loading" class="button-content">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-9"></path><path d="M3 14h9a2 2 0 0 0 0-4H3z"></path></svg>
+          <svg>...</svg>
           开始划重点
         </span>
         <span v-else class="loading-state">
           <svg class="spinner" viewBox="0 0 50 50"><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle></svg>
-          {{ loadingText }}
+          深度阅读中...
         </span>
       </button>
 
